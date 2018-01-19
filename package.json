@@ -1,0 +1,31 @@
+{
+  "name": "jumpstart",
+  "version": "1.0.0",
+  "description": "Get pushnotifications in the morning of the nearest JUMP bike",
+  "main": "handler.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dschep/jumpstart.git"
+  },
+  "keywords": [
+    "jump",
+    "ebike",
+    "bikeshare",
+    "notification"
+  ],
+  "author": "Daniel Schep <dschep@gmail.com>",
+  "license": "GPL-3.0",
+  "bugs": {
+    "url": "https://github.com/dschep/jumpstart/issues"
+  },
+  "homepage": "https://github.com/dschep/jumpstart#readme",
+  "dependencies": {
+    "@turf/turf": "^5.1.6",
+    "aws-sdk": "^2.184.0",
+    "middy": "^0.7.4",
+    "node-fetch": "^1.7.3"
+  }
+}
