@@ -17,7 +17,6 @@ const ssmParameterMiddleware =  (parameters, decrypt = true) => ({
       handler.context.parameters = Parameters.reduce(
         (params, {Name, Value}) => Object.assign(params, {[Name.split('/')[3]]: Value}), {});
     });
-
   },
 })
 
