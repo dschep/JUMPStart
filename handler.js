@@ -5,6 +5,7 @@ const middy = require('middy');
 const {ssm} = require('middy/middlewares');
 const turf = require('@turf/turf');
 const AWS = require('aws-sdk');
+const docClient = new AWS.DynamoDB.DocumentClient();
 
 
 const home = {
@@ -15,7 +16,7 @@ const home = {
   },
 };
 
-const jumpstart = (event, context) => fetch('https://dc.jumpmobility.com/opendata/free_bike_status.json')
+const jumpstart = middy((event, context) => fetch('https://dc.jumpmobility.com/opendata/free_bike_status.json')
   .then(resp => resp.json())
   .then(({data: {bikes}}) => ({
     type: 'FeatureCollection',
@@ -48,14 +49,16 @@ const jumpstart = (event, context) => fetch('https://dc.jumpmobility.com/opendat
       method: 'POST',
       body: encodedParams,
     });
-  })
+  }));
 
-const handler = middy(jumpstart);
-handler.use(ssm({
+jumpstart.use(ssm({
   params: {
     pushoverApiToken: `/${process.env.SERVICE_NAME}/${process.env.STAGE}/pushover_api_token`,
     pushoverUserKey: `/${process.env.SERVICE_NAME}/${process.env.STAGE}/pushover_user_key`,
   },
   setToContext: true,
 }));
-module.exports.jumpstart = handler
+
+module.exports = {
+  jumpstart,
+};
