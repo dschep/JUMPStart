@@ -5,3 +5,4 @@ notification at 7AM.
 
 ### A screenshot
 ![](.screenshot.png)
+![](.screenshot2.png)
