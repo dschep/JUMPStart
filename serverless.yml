@@ -9,6 +9,15 @@ provider:
   region: us-east-1
   iamRoleStatements:
     - Effect: Allow
+      Action: lambda:InvokeFunction
+      Resource:
+        'Fn::Join':
+          - ':'
+          - - 'arn:aws:lambda'
+            - Ref: 'AWS::Region'
+            - Ref: 'AWS::AccountId'
+            - function:${self:custom.service.name}-${self:custom.stage}-jumpstart
+    - Effect: Allow
       Action: ssm:GetParameters
       Resource:
         'Fn::Join':
@@ -17,14 +26,56 @@ provider:
             - Ref: 'AWS::Region'
             - Ref: 'AWS::AccountId'
             - parameter/${self:custom.service.name}/${self:custom.stage}/*
+    - Effect: Allow
+      Action:
+        - dynamodb:DescribeTable
+        - dynamodb:Query
+        - dynamodb:Scan
+        - dynamodb:GetItem
+        - dynamodb:PutItem
+        - dynamodb:UpdateItem
+        - dynamodb:DeleteItem
+      Resource: "arn:aws:dynamodb:us-east-1:*:*/${self:custom.table}"
   environment:
     STAGE: ${self:custom.stage}
     SERVICE_NAME: ${self:custom.service.name}
+    TABLE: ${self:custom.table}
+
 custom:
   stage: ${opt:stage, self:provider.stage} # shortcut for current stage
   service: ${file(serverless.yml):service} # workaround for ${self:service}
+  table: jumpstart-${self:custom.stage}-push-subscriptions
+  client: # serverless-finch config
+    bucketName: jumpstart.bikehero.io
+    distributionFolder: client
 functions:
   jumpstart:
     handler: handler.jumpstart
     events:
       - schedule: 'cron(0 12 ? * MON-FRI *)'
+  register:
+    handler: handler.register
+    events:
+      - http:
+          path: /register
+          method: post
+          cors: true
+
+plugins:
+  - serverless-finch
+
+resources:
+  Resources:
+    JUMPStartDynamoDbTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:custom.table}
+        AttributeDefinitions:
+          - AttributeName: endpoint
+            AttributeType: S
+        KeySchema: 
+          - AttributeName: endpoint
+            KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1

@@ -2,10 +2,12 @@
 
 const fetch = require('node-fetch');
 const middy = require('middy');
-const {ssm} = require('middy/middlewares');
+const {ssm, cors} = require('middy/middlewares');
 const turf = require('@turf/turf');
 const AWS = require('aws-sdk');
+const webpush = require('web-push');
 const docClient = new AWS.DynamoDB.DocumentClient();
+const lambda = new AWS.Lambda();
 
 
 const home = {
@@ -16,49 +18,71 @@ const home = {
   },
 };
 
-const jumpstart = middy((event, context) => fetch('https://dc.jumpmobility.com/opendata/free_bike_status.json')
-  .then(resp => resp.json())
-  .then(({data: {bikes}}) => ({
-    type: 'FeatureCollection',
-    features: bikes.map(({lat, lon}) => ({
-      type: 'Point',
-      coordinates: [lon, lat],
-    }))
-  }))
-  .then(geojson => {
-    for (const feature of geojson.features) {
-      feature.properties = {
-        distance: turf.distance(home, feature),
-      };
-    }
-    geojson.features = geojson.features.sort(
-      (a, b) => a.properties.distance < b.properties.distance ? -1 : 1);
-    return geojson.features[0];
-  })
-  .then(nearestBike => {
-    const params = {
-      token: context.pushoverApiToken,
-      user: context.pushoverUserKey,
-      message: `The nearest JUMP bike is ${nearestBike.properties.distance.toFixed(2)}mi away.`,
-      url: `https://www.google.com/maps?q=${nearestBike.coordinates[1]},+${nearestBike.coordinates[0]}`,
-      url_title: 'View in Google Maps',
-    };
-    const encodedParams = Object.keys(params).map(
-      k => `${encodeURIComponent(k)}=${encodeURIComponent(params[k])}`).join('&');
-    return fetch('https://api.pushover.net/1/messages.json', {
-      method: 'POST',
-      body: encodedParams,
-    });
-  }));
+const jumpstart = middy((event, context) => {
+  webpush.setVapidDetails(
+    'mailto:dschep@gmail.com',
+    context.vapidPublicKey,
+    context.vapidPrivateKey);
+  const bikesGeoJsonPromise = fetch('https://dc.jumpmobility.com/opendata/free_bike_status.json')
+    .then(resp => resp.json())
+    .then(({data: {bikes}}) => ({
+      type: 'FeatureCollection',
+      features: bikes.map(({lat, lon}) => ({
+        type: 'Point',
+        coordinates: [lon, lat],
+      }))
+    }));
+  const subscriptionPromise = docClient.scan({TableName: process.env.TABLE}).promise();
+  return Promise.all([bikesGeoJsonPromise, subscriptionPromise])
+    .then(([geojson, {Items}]) => Promise.all(Items.map((subscriptionAndLocation) => {
+      const location = subscriptionAndLocation.location;
+      delete subscriptionAndLocation.location;
+      for (const feature of geojson.features) {
+        feature.properties = {
+          distance: turf.distance({
+            type: 'Feature',
+            geometry: {
+              type: 'Point',
+              coordinates: [location.lng, location.lat],
+            },
+          }, feature),
+        };
+      }
+      geojson.features = geojson.features.sort(
+        (a, b) => a.properties.distance < b.properties.distance ? -1 : 1);
+      const nearestBike = geojson.features[0];
+      const message = `The nearest JUMP bike is ${nearestBike.properties.distance.toFixed(2)}mi away.`;
+      const url = `https://www.google.com/maps?q=${nearestBike.coordinates[1]},+${nearestBike.coordinates[0]}`;
+
+        return webpush.sendNotification(subscriptionAndLocation, JSON.stringify({
+          message,
+          url,
+        }))
+        .catch((err) => docClient.delete({
+          TableName: process.env.TABLE,
+          Key: {endpoint: subscriptionAndLocation.endpoint},
+        }).promise());
+    })));
+});
 
 jumpstart.use(ssm({
   params: {
-    pushoverApiToken: `/${process.env.SERVICE_NAME}/${process.env.STAGE}/pushover_api_token`,
-    pushoverUserKey: `/${process.env.SERVICE_NAME}/${process.env.STAGE}/pushover_user_key`,
+    vapidPrivateKey: `/${process.env.SERVICE_NAME}/${process.env.STAGE}/vapid_private_key`,
+    vapidPublicKey: `/${process.env.SERVICE_NAME}/${process.env.STAGE}/vapid_public_key`,
   },
   setToContext: true,
 }));
 
+const register = middy((event) => docClient.put({
+  TableName: process.env.TABLE,
+  Item: JSON.parse(event.body),
+}).promise()
+  .then((res) => ({statusCode: 200, body: JSON.stringify(res)}))
+  .catch((err) => ({statusCode: 500, body: JSON.stringify(err)})));
+
+register.use(cors());
+
 module.exports = {
   jumpstart,
+  register,
 };
