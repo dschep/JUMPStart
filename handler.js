@@ -64,7 +64,6 @@ const jumpstart = middy((event, context) => {
         }).promise());
     })));
 });
-
 jumpstart.use(ssm({
   params: {
     vapidPrivateKey: `/${process.env.SERVICE_NAME}/${process.env.STAGE}/vapid_private_key`,
@@ -79,10 +78,18 @@ const register = middy((event) => docClient.put({
 }).promise()
   .then((res) => ({statusCode: 200, body: JSON.stringify(res)}))
   .catch((err) => ({statusCode: 500, body: JSON.stringify(err)})));
-
 register.use(cors());
+
+const unregister = middy((event) => docClient.delete({
+  TableName: process.env.TABLE,
+  Key: JSON.parse(event.body),
+}).promise()
+  .then((res) => ({statusCode: 200, body: JSON.stringify(res)}))
+  .catch((err) => ({statusCode: 500, body: JSON.stringify(err)})));
+unregister.use(cors());
 
 module.exports = {
   jumpstart,
   register,
+  unregister,
 };

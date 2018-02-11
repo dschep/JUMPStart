@@ -60,6 +60,13 @@ functions:
           path: /register
           method: post
           cors: true
+  unregister:
+    handler: handler.unregister
+    events:
+      - http:
+          path: /unregister
+          method: post
+          cors: true
 
 plugins:
   - serverless-finch

@@ -30,3 +30,7 @@ html, body {
 h1 img {
     vertical-align: middle;
 }
+button {
+    display: inline-block;
+    width: calc(50% - 20px / 2);
+}

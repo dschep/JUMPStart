@@ -30,26 +30,56 @@ lc.start();
 
 L.control.mapCenterCoord().addTo(map);
 
-document.querySelector('button').onclick = () => {
+if (navigator.serviceWorker) {
   navigator.serviceWorker.register('./sw.js')
-    .then((registration) => registration.pushManager.getSubscription()
-      .then((subscription) => (subscription || registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array('BFyII4W6YBUU9p-h2jYqrbMeR5zdny3oYULYIwttBYVXxDIken5mqiXcrPy8on1hzUiUYawE4YDoyGNBLsOR8ts'),
-      }))))
-      // hack to convert to object :/
-      .then((pushSubscription) => JSON.parse(JSON.stringify(pushSubscription)))
-      // add location
-      .then((pushSubscription) => {
-        pushSubscription.location = map.getCenter();
-        return pushSubscription;
-      })
-      // POST to backend
-      .then((pushSubscription) => fetch('https://d7zkv7kce6.execute-api.us-east-1.amazonaws.com/dev/register', {
-        method: 'POST',
-        body: JSON.stringify(pushSubscription),
-        cors: true,
-        headers: {'Content-Type': 'application/json'},
-      }))
-    .catch(console.log);
-};
+    .then((registration) => {
+      const sub = document.querySelector('button#subscribe');
+      const unsub = document.querySelector('button#unsubscribe');
+      sub.disabled = false;
+      sub.onclick = () => {
+        registration.pushManager.getSubscription()
+          .then((subscription) => (subscription || registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array('BFyII4W6YBUU9p-h2jYqrbMeR5zdny3oYULYIwttBYVXxDIken5mqiXcrPy8on1hzUiUYawE4YDoyGNBLsOR8ts'),
+          })))
+          // hack to convert to object :/
+          .then((pushSubscription) => JSON.parse(JSON.stringify(pushSubscription)))
+          // add location
+          .then((pushSubscription) => {
+            pushSubscription.location = map.getCenter();
+            return pushSubscription;
+          })
+          // POST to backend
+          .then((pushSubscription) => fetch('https://d7zkv7kce6.execute-api.us-east-1.amazonaws.com/dev/register', {
+            method: 'POST',
+            body: JSON.stringify(pushSubscription),
+            cors: true,
+            headers: {'Content-Type': 'application/json'},
+          }))
+          .then(() => {unsub.disabled = false;})
+          .catch(console.log);
+      };
+      unsub.onclick = () => registration.pushManager.getSubscription()
+        .then((subscription) => {
+          subscription.unsubscribe();
+          return subscription;
+        })
+        .then((subscription) => fetch('https://d7zkv7kce6.execute-api.us-east-1.amazonaws.com/dev/unregister', {
+          method: 'POST',
+          body: JSON.stringify({endpoint: subscription.endpoint}),
+          cors: true,
+          headers: {'Content-Type': 'application/json'},
+        }))
+        .then(() => {
+          unsub.disabled = true;
+        });
+      registration.pushManager.getSubscription()
+        .then((subscription) => {
+          if (subscription) {
+            unsub.disabled = false;
+          }
+        });
+    });
+} else {
+  document.getElementById('no-sw').style.display = 'block';
+}
