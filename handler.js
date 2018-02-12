@@ -51,6 +51,8 @@ const jumpstart = middy((event, context) => {
       geojson.features = geojson.features.sort(
         (a, b) => a.properties.distance < b.properties.distance ? -1 : 1);
       const nearestBike = geojson.features[0];
+      if (nearestBike.properties.distance > 0.5)
+        return;
       const message = `The nearest JUMP bike is ${nearestBike.properties.distance.toFixed(2)}mi away.`;
       const url = `https://www.google.com/maps?q=${nearestBike.coordinates[1]},+${nearestBike.coordinates[0]}`;
 
