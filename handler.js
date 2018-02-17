@@ -64,7 +64,8 @@ const jumpstart = middy((event, context) => {
           TableName: process.env.TABLE,
           Key: {endpoint: subscriptionAndLocation.endpoint},
         }).promise());
-    })));
+    })))
+    .then(console.log);
 });
 jumpstart.use(ssm({
   params: {
