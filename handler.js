@@ -91,8 +91,39 @@ const unregister = middy((event) => docClient.delete({
   .catch((err) => ({statusCode: 500, body: JSON.stringify(err)})));
 unregister.use(cors());
 
+const sunset = middy((event, context) => {
+  webpush.setVapidDetails(
+    'mailto:dschep@gmail.com',
+    context.vapidPublicKey,
+    context.vapidPrivateKey);
+  return docClient.scan({TableName: process.env.TABLE}).promise()
+    .then(({Items}) => Promise.all(Items.map((subscriptionAndLocation) => {
+      delete subscriptionAndLocation.location;
+      const message = "I've discontinued JUMPStart in light of news of JUMP's acquisition by Uber";
+      const url = 'https://github.com/dschep/jumpstart';
+
+      return webpush.sendNotification(subscriptionAndLocation, JSON.stringify({
+        message,
+        url,
+      }))
+      .catch((err) => docClient.delete({
+        TableName: process.env.TABLE,
+        Key: {endpoint: subscriptionAndLocation.endpoint},
+      }).promise());
+    })))
+    .then(console.log);
+});
+sunset.use(ssm({
+  params: {
+    vapidPrivateKey: `/${process.env.SERVICE_NAME}/${process.env.STAGE}/vapid_private_key`,
+    vapidPublicKey: `/${process.env.SERVICE_NAME}/${process.env.STAGE}/vapid_public_key`,
+  },
+  setToContext: true,
+}));
+
 module.exports = {
   jumpstart,
   register,
   unregister,
+  sunset,
 };

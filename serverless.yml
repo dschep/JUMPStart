@@ -49,10 +49,16 @@ custom:
     bucketName: jumpstart.bikehero.io
     distributionFolder: client
 functions:
+  sunset:
+    handler: handler.sunset
+    events:
+      - schedule: 'cron(0 11 9 4 * 2018)'
+        enabled: false
   jumpstart:
     handler: handler.jumpstart
     events:
-      - schedule: 'cron(0 12 ? * MON-FRI *)'
+      - schedule: 'cron(0 11 ? * MON-FRI *)'
+        enabled: false
   register:
     handler: handler.register
     events:
